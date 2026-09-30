@@ -1,0 +1,197 @@
+{
+  "info": {
+    "name": "Al-Elmam Logistics API",
+    "description": "مجموعة طلبات جاهزة لاختبار واجهة برمجة تطبيقات شركة الإلمام للخدمات اللوجستية. استورد هذا الملف مع ملف البيئة (Environment) المرفق في Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "jwtToken", "value": "" },
+    { "key": "apiKey", "value": "" },
+    { "key": "shipmentId", "value": "" },
+    { "key": "driverId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1) Auth (إدارة الإلمام)",
+      "item": [
+        {
+          "name": "تسجيل الدخول (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json().data;",
+                  "pm.collectionVariables.set('jwtToken', data.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@alelmam.com\",\n  \"password\": \"ChangeMe123!\"\n}" },
+            "url": "{{baseUrl}}/api/v1/auth/login"
+          }
+        },
+        {
+          "name": "إنشاء عميل API جديد (مثال: شركة أوتو)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json().data;",
+                  "pm.collectionVariables.set('apiKey', data.apiKey);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"شركة أوتو\",\n  \"contactEmail\": \"ops@auto.com\",\n  \"rateLimit\": 500\n}" },
+            "url": "{{baseUrl}}/api/v1/auth/admin/clients"
+          }
+        },
+        { "name": "قائمة عملاء API", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }], "url": "{{baseUrl}}/api/v1/auth/admin/clients" } },
+        { "name": "توليد مفتاح API جديد لعميل", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }], "url": "{{baseUrl}}/api/v1/auth/admin/clients/:clientId/regenerate-key" } },
+        { "name": "إيقاف عميل", "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }], "url": "{{baseUrl}}/api/v1/auth/admin/clients/:clientId/suspend" } }
+      ]
+    },
+    {
+      "name": "2) Shipments (تستخدم مفتاح API)",
+      "item": [
+        {
+          "name": "إنشاء شحنة — أسطول داخلي (internal)",
+          "event": [
+            { "listen": "test", "script": { "exec": ["const data = pm.response.json().data;", "pm.collectionVariables.set('shipmentId', data.id);"] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"carrierCode\": \"internal\",\n  \"senderName\": \"متجر أوتو\",\n  \"senderPhone\": \"0512345678\",\n  \"senderAddress\": \"شارع الملك فهد\",\n  \"senderCity\": \"الرياض\",\n  \"recipientName\": \"أحمد العتيبي\",\n  \"recipientPhone\": \"0567891234\",\n  \"recipientAddress\": \"حي النرجس\",\n  \"recipientCity\": \"الرياض\",\n  \"weightKg\": 2.5,\n  \"packageDesc\": \"طلب من متجر أوتو\",\n  \"codAmount\": 150\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/shipments"
+          }
+        },
+        {
+          "name": "إنشاء شحنة — شركة خارجية (aramex / smsa / saudipost / mock)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"carrierCode\": \"mock\",\n  \"senderName\": \"متجر أوتو\",\n  \"senderPhone\": \"0512345678\",\n  \"senderAddress\": \"شارع الملك فهد\",\n  \"senderCity\": \"الرياض\",\n  \"recipientName\": \"سارة القحطاني\",\n  \"recipientPhone\": \"0598765432\",\n  \"recipientAddress\": \"حي الملقا\",\n  \"recipientCity\": \"الرياض\",\n  \"weightKg\": 1.2\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/shipments"
+          }
+        },
+        { "name": "قائمة الشحنات", "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/shipments?page=1&pageSize=20" } },
+        { "name": "الاستعلام عن شحنة واحدة", "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/shipments/{{shipmentId}}" } },
+        {
+          "name": "تحديث بيانات شحنة",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"recipientPhone\": \"0511112222\"\n}" },
+            "url": "{{baseUrl}}/api/v1/shipments/{{shipmentId}}"
+          }
+        },
+        { "name": "إلغاء شحنة", "request": { "method": "POST", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/shipments/{{shipmentId}}/cancel" } },
+        { "name": "سجل تتبع الشحنة", "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/shipments/{{shipmentId}}/tracking" } },
+        { "name": "تحديث التتبع من شركة الشحن مباشرة", "request": { "method": "POST", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/shipments/{{shipmentId}}/tracking/refresh" } }
+      ]
+    },
+    {
+      "name": "3) Carriers",
+      "item": [
+        { "name": "قائمة شركات الشحن", "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/carriers" } }
+      ]
+    },
+    {
+      "name": "4) Webhooks",
+      "item": [
+        {
+          "name": "تسجيل ويب هوك",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-API-Key", "value": "{{apiKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://your-system.com/webhooks/alelmam\",\n  \"events\": [\"shipment.status_changed\"]\n}" },
+            "url": "{{baseUrl}}/api/v1/webhooks"
+          }
+        },
+        { "name": "قائمة الويب هوك", "request": { "method": "GET", "header": [{ "key": "X-API-Key", "value": "{{apiKey}}" }], "url": "{{baseUrl}}/api/v1/webhooks" } }
+      ]
+    },
+    {
+      "name": "5) Internal Dispatch (إدارة الإلمام — JWT)",
+      "item": [
+        {
+          "name": "إضافة مندوب",
+          "event": [{ "listen": "test", "script": { "exec": ["const data = pm.response.json().data;", "pm.collectionVariables.set('driverId', data.id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"خالد المطيري\",\n  \"phone\": \"0511122233\",\n  \"vehicleInfo\": \"تويوتا هايلكس\"\n}" },
+            "url": "{{baseUrl}}/api/v1/internal/drivers"
+          }
+        },
+        { "name": "قائمة المناديب", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }], "url": "{{baseUrl}}/api/v1/internal/drivers" } },
+        { "name": "شحنات الأسطول الداخلي غير المُعيَّنة", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }], "url": "{{baseUrl}}/api/v1/internal/shipments?unassigned=true" } },
+        {
+          "name": "تعيين مندوب لشحنة",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"driverId\": \"{{driverId}}\"\n}" },
+            "url": "{{baseUrl}}/api/v1/internal/shipments/{{shipmentId}}/assign"
+          }
+        },
+        {
+          "name": "تحديث حالة شحنة داخلية يدوياً",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"DELIVERED\",\n  \"descriptionAr\": \"تم تسليم الشحنة للمستلم\",\n  \"location\": \"الرياض\"\n}" },
+            "url": "{{baseUrl}}/api/v1/internal/shipments/{{shipmentId}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6) Health & Docs",
+      "item": [
+        { "name": "فحص صحة الخادم", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+        { "name": "توثيق Swagger (JSON)", "request": { "method": "GET", "url": "{{baseUrl}}/api-docs.json" } }
+      ]
+    }
+  ]
+}

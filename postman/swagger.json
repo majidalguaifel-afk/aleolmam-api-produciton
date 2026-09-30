@@ -1,0 +1,539 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Al-Elmam Logistics API — واجهة برمجة تطبيقات الإلمام للخدمات اللوجستية",
+    "version": "1.0.0",
+    "description": "\nواجهة برمجية موحّدة لإدارة شحنات شركة الإلمام للخدمات اللوجستية.\n\n**نوعان من الاستخدام:**\n1. **عملاء خارجيون** (تجار، منصات، شركات مثل \"أوتو\"): يستخدمون `X-API-Key` لإنشاء ومتابعة شحنات — إما تُرسَل لشركة شحن خارجية (أرامكس/سمسا/سبل)، أو تُسنَد لأسطول الإلمام الداخلي (carrierCode = \"internal\").\n2. **فريق الإلمام الإداري**: يستخدم تسجيل دخول JWT لإدارة العملاء، المناديب، وتعيين الشحنات الداخلية.\n\nجميع التواريخ بصيغة ISO 8601. جميع المبالغ بالريال السعودي (SAR) ما لم يُذكر خلاف ذلك.\n      ",
+    "contact": {
+      "name": "فريق تقنية المعلومات — شركة الإلمام"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.alelmam.com",
+      "description": "بيئة الإنتاج"
+    },
+    {
+      "url": "http://localhost:4000",
+      "description": "بيئة التطوير المحلي"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "مفتاح API الخاص بحسابك (يُعطى عند إنشاء حسابك من فريق الإلمام)"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "رمز دخول لوحة إدارة الإلمام (لفريق الإلمام الداخلي فقط)"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "admin@alelmam.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "SecurePass123"
+          }
+        }
+      },
+      "CreateShipmentRequest": {
+        "type": "object",
+        "required": [
+          "carrierCode",
+          "senderName",
+          "senderPhone",
+          "senderAddress",
+          "senderCity",
+          "recipientName",
+          "recipientPhone",
+          "recipientAddress",
+          "recipientCity",
+          "weightKg"
+        ],
+        "properties": {
+          "carrierCode": {
+            "type": "string",
+            "example": "internal",
+            "description": "\"internal\" لأسطول الإلمام، أو \"aramex\" / \"smsa\" / \"saudipost\" لشركة شحن خارجية"
+          },
+          "senderName": {
+            "type": "string",
+            "example": "متجر الأمثلة"
+          },
+          "senderPhone": {
+            "type": "string",
+            "example": "0512345678"
+          },
+          "senderAddress": {
+            "type": "string",
+            "example": "شارع الملك فهد، مبنى 12"
+          },
+          "senderCity": {
+            "type": "string",
+            "example": "الرياض"
+          },
+          "recipientName": {
+            "type": "string",
+            "example": "أحمد العتيبي"
+          },
+          "recipientPhone": {
+            "type": "string",
+            "example": "0567891234"
+          },
+          "recipientAddress": {
+            "type": "string",
+            "example": "حي النرجس، شارع الأمير سلطان"
+          },
+          "recipientCity": {
+            "type": "string",
+            "example": "الرياض"
+          },
+          "weightKg": {
+            "type": "number",
+            "example": 2.5
+          },
+          "packageDesc": {
+            "type": "string",
+            "example": "إلكترونيات"
+          },
+          "codAmount": {
+            "type": "number",
+            "example": 150,
+            "description": "مبلغ الدفع عند الاستلام (اختياري)"
+          },
+          "declaredValue": {
+            "type": "number",
+            "example": 300
+          }
+        }
+      },
+      "RegisterWebhookRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "events"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://your-system.com/webhooks/alelmam"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "shipment.created",
+                "shipment.status_changed",
+                "shipment.cancelled",
+                "*"
+              ]
+            },
+            "example": [
+              "shipment.status_changed"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/webhooks": {
+      "post": {
+        "summary": "تسجيل رابط ويب هوك لاستقبال إشعارات لحظية بتحديثات الشحنات",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterWebhookRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم التسجيل"
+          }
+        }
+      },
+      "get": {
+        "summary": "قائمة الويب هوك المسجّلة",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "القائمة"
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{id}": {
+      "delete": {
+        "summary": "حذف ويب هوك",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "تم الحذف"
+          }
+        }
+      }
+    },
+    "/api/v1/shipments": {
+      "post": {
+        "summary": "إنشاء طلب شحن جديد",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShipmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "تم إنشاء الشحنة"
+          },
+          "422": {
+            "description": "بيانات غير صحيحة"
+          }
+        }
+      },
+      "get": {
+        "summary": "قائمة شحنات العميل",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "قائمة الشحنات"
+          }
+        }
+      }
+    },
+    "/api/v1/shipments/{id}": {
+      "get": {
+        "summary": "الاستعلام عن شحنة واحدة",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "بيانات الشحنة"
+          },
+          "404": {
+            "description": "غير موجودة"
+          }
+        }
+      },
+      "patch": {
+        "summary": "تحديث بيانات شحنة",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم التحديث"
+          }
+        }
+      }
+    },
+    "/api/v1/shipments/{id}/cancel": {
+      "post": {
+        "summary": "إلغاء طلب شحن",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم الإلغاء"
+          },
+          "409": {
+            "description": "لا يمكن الإلغاء في هذه الحالة"
+          }
+        }
+      }
+    },
+    "/api/v1/shipments/{id}/tracking": {
+      "get": {
+        "summary": "سجل تتبع الشحنة الكامل",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "أحداث التتبع"
+          }
+        }
+      }
+    },
+    "/api/v1/shipments/{id}/tracking/refresh": {
+      "post": {
+        "summary": "استعلام مباشر من شركة الشحن عن آخر تحديث (بدلاً من انتظار الويب هوك)",
+        "tags": [
+          "Shipments"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "أحدث أحداث التتبع"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/drivers": {
+      "post": {
+        "summary": "[إدارة الإلمام فقط] إضافة مندوب جديد للأسطول الداخلي",
+        "tags": [
+          "Internal Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "تم إنشاء المندوب"
+          }
+        }
+      },
+      "get": {
+        "summary": "[إدارة الإلمام فقط] قائمة المناديب",
+        "tags": [
+          "Internal Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "القائمة"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/shipments": {
+      "get": {
+        "summary": "[إدارة الإلمام فقط] شحنات الأسطول الداخلي (الواردة من عملاء مثل أوتو)",
+        "tags": [
+          "Internal Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unassigned",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "أظهر فقط الشحنات التي لم يُعيَّن لها مندوب بعد"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "القائمة"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/shipments/{id}/assign": {
+      "post": {
+        "summary": "[إدارة الإلمام فقط] تعيين مندوب لشحنة",
+        "tags": [
+          "Internal Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم التعيين"
+          }
+        }
+      }
+    },
+    "/api/v1/internal/shipments/{id}/status": {
+      "post": {
+        "summary": "[إدارة الإلمام فقط] تحديث حالة شحنة داخلية يدوياً (استلام/توصيل/فشل...)",
+        "tags": [
+          "Internal Dispatch"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "تم التحديث، وتم إشعار العميل الأصلي عبر الويب هوك"
+          }
+        }
+      }
+    },
+    "/api/v1/carriers": {
+      "get": {
+        "summary": "قائمة شركات الشحن المفعّلة حالياً",
+        "tags": [
+          "Carriers"
+        ],
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "قائمة الشركات"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "تسجيل دخول لوحة إدارة الإلمام",
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "رمز الدخول (JWT)"
+          },
+          "401": {
+            "description": "بيانات دخول خاطئة"
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}
